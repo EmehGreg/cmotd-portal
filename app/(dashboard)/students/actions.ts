@@ -39,68 +39,71 @@ export async function registerStudent(formData: FormData) {
       ? await uploadPassportPhoto(passportPhoto)
       : null;
 
-  if (studentId) {
-    const existingStudent = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: {
-        id: true,
-        registrationNumber: true,
-        passportPhotoUrl: true,
-      },
-    });
+if (studentId) {
+  const existingStudent = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: {
+      id: true,
+      registrationNumber: true,
+      passportPhotoUrl: true,
+      registeredAt: true,
+    },
+  });
 
-    if (!existingStudent) {
-      throw new Error("Selected student was not found.");
-    }
-
-    const registrationNumber =
-      existingStudent.registrationNumber ??
-      (await generateRegistrationNumber({
-        programmeId,
-        batch,
-        disability,
-      }));
-
-    const passportPhotoUrl =
-      uploadedPassportPhotoUrl ?? existingStudent.passportPhotoUrl;
-
-    await prisma.student.update({
-      where: { id: studentId },
-      data: {
-        firstName,
-        lastName,
-        email: parseOptionalString(formData.get("email")),
-        phone: parseOptionalString(formData.get("phone")),
-        dateOfBirth: parseOptionalDate(formData.get("dateOfBirth")),
-        gender:
-          parseOptionalString(formData.get("gender")) === "MALE"
-            ? "MALE"
-            : parseOptionalString(formData.get("gender")) === "FEMALE"
-            ? "FEMALE"
-            : null,
-        residentialAddress: parseOptionalString(
-          formData.get("residentialAddress")
-        ),
-        passportPhotoUrl,
-        batch,
-        registrationNumber,
-        competencyId: parseOptionalString(formData.get("competencyId")),
-        educationLevel: parseOptionalString(formData.get("educationLevel")),
-        company: parseOptionalString(formData.get("company")),
-        remarks: parseOptionalString(formData.get("remarks")),
-        disability,
-        programmeId,
-        stateId: parseOptionalString(formData.get("stateId")),
-        educationBackgroundId: parseOptionalString(
-          formData.get("educationBackgroundId")
-        ),
-        isRegistered: true,
-        registeredAt: new Date(),
-      },
-    });
-
-    redirect(`/students/${studentId}`);
+  if (!existingStudent) {
+    throw new Error("Selected student was not found.");
   }
+
+  const registrationNumber =
+    existingStudent.registrationNumber ??
+    (await generateRegistrationNumber({
+      programmeId,
+      batch,
+      disability,
+    }));
+
+  const passportPhotoUrl =
+    uploadedPassportPhotoUrl ?? existingStudent.passportPhotoUrl;
+
+  await prisma.student.update({
+    where: { id: studentId },
+    data: {
+      firstName,
+      lastName,
+      email: parseOptionalString(formData.get("email")),
+      phone: parseOptionalString(formData.get("phone")),
+      dateOfBirth: parseOptionalDate(formData.get("dateOfBirth")),
+      gender:
+        parseOptionalString(formData.get("gender")) === "MALE"
+          ? "MALE"
+          : parseOptionalString(formData.get("gender")) === "FEMALE"
+          ? "FEMALE"
+          : null,
+      residentialAddress: parseOptionalString(
+        formData.get("residentialAddress")
+      ),
+      passportPhotoUrl,
+      batch,
+      registrationNumber,
+      competencyId: parseOptionalString(formData.get("competencyId")),
+      educationLevel: parseOptionalString(formData.get("educationLevel")),
+      company: parseOptionalString(formData.get("company")),
+      remarks: parseOptionalString(formData.get("remarks")),
+      disability,
+      programmeId,
+      stateId: parseOptionalString(formData.get("stateId")),
+      educationBackgroundId: parseOptionalString(
+        formData.get("educationBackgroundId")
+      ),
+      isRegistered: true,
+      registeredAt: existingStudent.registrationNumber
+        ? existingStudent.registeredAt ?? new Date()
+        : new Date(),
+    },
+  });
+
+  redirect(`/students/${studentId}`);
+}
 
   const registrationNumber = await generateRegistrationNumber({
     programmeId,
