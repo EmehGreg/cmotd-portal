@@ -6,6 +6,8 @@ type GenerateRegistrationNumberArgs = {
   disability: boolean;
 };
 
+const DISABILITY_PRIORITY_PROGRAMME_CODES = new Set(["BDA", "OOW", "SDC"]);
+
 export async function generateRegistrationNumber({
   programmeId,
   batch,
@@ -48,22 +50,21 @@ export async function generateRegistrationNumber({
     }
   }
 
-  if (disability) {
+  const supportsDisabilityPriority =
+    DISABILITY_PRIORITY_PROGRAMME_CODES.has(programme.code);
+
+  if (disability && supportsDisabilityPriority) {
     for (let i = 1; i <= 20; i++) {
       if (!usedNumbers.has(i)) {
         return `${prefix}${String(i).padStart(2, "0")}`;
       }
     }
-
-    throw new Error(
-      "Disability priority slots (01-20) are full for this programme and year."
-    );
   }
 
-  let i = 21;
-  while (usedNumbers.has(i)) {
-    i++;
-  }
+  const highestUsedNumber =
+    usedNumbers.size > 0 ? Math.max(...usedNumbers) : 0;
 
-  return `${prefix}${String(i).padStart(2, "0")}`;
+  const nextNumber = highestUsedNumber + 1;
+
+  return `${prefix}${String(nextNumber).padStart(2, "0")}`;
 }
