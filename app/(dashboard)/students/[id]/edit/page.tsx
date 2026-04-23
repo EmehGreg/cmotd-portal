@@ -11,6 +11,21 @@ import { PageHeader } from "@/components/shared/page-header";
 import { PassportPhotoField } from "@/components/student/passport-photo-field";
 import { getPassportPhotoUrl } from "@/lib/supabase/get-passport-photo-url";
 
+type ProgrammeOption = {
+  id: string;
+  name: string;
+};
+
+type StateOption = {
+  id: string;
+  name: string;
+};
+
+type EducationBackgroundOption = {
+  id: string;
+  name: string;
+};
+
 export default async function EditStudentPage({
   params,
 }: {
@@ -24,19 +39,32 @@ export default async function EditStudentPage({
         where: { id },
       }),
       prisma.programme.findMany({
+        select: {
+          id: true,
+          name: true,
+        },
         orderBy: { name: "asc" },
-      }),
+      }) as Promise<ProgrammeOption[]>,
       prisma.state.findMany({
+        select: {
+          id: true,
+          name: true,
+        },
         orderBy: { name: "asc" },
-      }),
+      }) as Promise<StateOption[]>,
       prisma.educationBackground.findMany({
+        select: {
+          id: true,
+          name: true,
+        },
         orderBy: { name: "asc" },
-      }),
+      }) as Promise<EducationBackgroundOption[]>,
     ]);
 
   if (!student) {
     notFound();
   }
+
   const passportPhotoSrc = await getPassportPhotoUrl(student.passportPhotoUrl);
   const dateValue = student.dateOfBirth
     ? student.dateOfBirth.toISOString().split("T")[0]
@@ -262,7 +290,7 @@ export default async function EditStudentPage({
               </div>
             </div>
 
-          <PassportPhotoField defaultImageUrl={passportPhotoSrc} />
+            <PassportPhotoField defaultImageUrl={passportPhotoSrc} />
           </div>
 
           <div>
