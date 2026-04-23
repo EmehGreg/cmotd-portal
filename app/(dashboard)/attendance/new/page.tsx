@@ -14,6 +14,19 @@ type ProgrammeOption = {
   name: string;
 };
 
+type AttendanceStudent = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  batch: string | null;
+  registrationNumber: string | null;
+  programme: {
+    id: string;
+    name: string;
+  };
+};
+
 const weekOptions = Array.from({ length: 12 }, (_, i) => ({
   value: String(i + 1),
   label: `Week ${i + 1}`,
@@ -34,15 +47,26 @@ export default async function AddAttendancePage({
     orderBy: { name: "asc" },
   });
 
-  const students =
+  const students: AttendanceStudent[] =
     programmeId === ""
       ? []
       : await prisma.student.findMany({
           where: {
             programmeId,
           },
-          include: {
-            programme: true,
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            batch: true,
+            registrationNumber: true,
+            programme: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
           orderBy: {
             registrationNumber: "asc",
