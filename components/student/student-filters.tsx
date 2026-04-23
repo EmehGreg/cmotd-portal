@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type Option = {
@@ -32,72 +32,102 @@ export function StudentFilters({
   const [programmeId, setProgrammeId] = useState(initialProgrammeId);
   const [stateId, setStateId] = useState(initialStateId);
 
-  const currentParams = useMemo(
-    () => new URLSearchParams(searchParams.toString()),
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const currentQueryString = useMemo(
+    () => searchParams.toString(),
     [searchParams]
   );
 
-  const updateParams = useCallback(
-    (next: { q?: string; programme?: string; state?: string }) => {
-      const params = new URLSearchParams(currentParams.toString());
-
-      const nextQ = next.q ?? q;
-      const nextProgrammeId = next.programme ?? programmeId;
-      const nextStateId = next.state ?? stateId;
-
-      if (nextQ.trim()) {
-        params.set("q", nextQ.trim());
-      } else {
-        params.delete("q");
-      }
-
-      if (nextProgrammeId) {
-        params.set("programme", nextProgrammeId);
-      } else {
-        params.delete("programme");
-      }
-
-      if (nextStateId) {
-        params.set("state", nextStateId);
-      } else {
-        params.delete("state");
-      }
-
-      startTransition(() => {
-        router.replace(
-          params.toString() ? `${pathname}?${params.toString()}` : pathname
-        );
-      });
-    },
-    [currentParams, pathname, programmeId, q, router, stateId]
-  );
+  useEffect(() => {
+    setQ(initialQ);
+  }, [initialQ]);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      updateParams({ q });
+    setProgrammeId(initialProgrammeId);
+  }, [initialProgrammeId]);
+
+  useEffect(() => {
+    setStateId(initialStateId);
+  }, [initialStateId]);
+
+  function replaceIfChanged(params: URLSearchParams) {
+    const nextQueryString = params.toString();
+
+    if (nextQueryString === currentQueryString) {
+      return;
+    }
+
+    const nextUrl = nextQueryString ? `${pathname}?${nextQueryString}` : pathname;
+
+    startTransition(() => {
+      router.replace(nextUrl);
+    });
+  }
+
+  function buildParams(next?: {
+    q?: string;
+    programme?: string;
+    state?: string;
+  }) {
+    const params = new URLSearchParams(searchParams.toString());
+
+    const nextQ = next?.q ?? q;
+    const nextProgrammeId = next?.programme ?? programmeId;
+    const nextStateId = next?.state ?? stateId;
+
+    if (nextQ.trim()) {
+      params.set("q", nextQ.trim());
+    } else {
+      params.delete("q");
+    }
+
+    if (nextProgrammeId) {
+      params.set("programme", nextProgrammeId);
+    } else {
+      params.delete("programme");
+    }
+
+    if (nextStateId) {
+      params.set("state", nextStateId);
+    } else {
+      params.delete("state");
+    }
+
+    return params;
+  }
+
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
+      replaceIfChanged(buildParams({ q }));
     }, 350);
 
-    return () => clearTimeout(timeout);
-  }, [q, updateParams]);
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [q, programmeId, stateId, currentQueryString]);
 
   function handleProgrammeChange(value: string) {
     setProgrammeId(value);
-    updateParams({ programme: value });
+    replaceIfChanged(buildParams({ programme: value }));
   }
 
   function handleStateChange(value: string) {
     setStateId(value);
-    updateParams({ state: value });
+    replaceIfChanged(buildParams({ state: value }));
   }
 
   function handleReset() {
     setQ("");
     setProgrammeId("");
     setStateId("");
-
-    startTransition(() => {
-      router.replace(pathname);
-    });
+    replaceIfChanged(new URLSearchParams());
   }
 
   return (

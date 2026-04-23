@@ -38,27 +38,51 @@ export function PersonSearchSelect({ onSelect }: Props) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    const trimmedQuery = query.trim();
+
+    if (trimmedQuery.length < 2) {
+      setResults([]);
+      setOpen(false);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
     const timeout = setTimeout(async () => {
-      if (query.trim().length < 2) {
-        setResults([]);
-        setOpen(false);
-        return;
-      }
-
-      setLoading(true);
       try {
-        const res = await fetch(
-          `/api/students/search?q=${encodeURIComponent(query.trim())}`
-        );
-        const data: SearchStudentResult[] = await res.json();
-        setResults(data);
-        setOpen(true);
-      } finally {
-        setLoading(false);
-      }
-    }, 250);
+        setLoading(true);
 
-    return () => clearTimeout(timeout);
+        const res = await fetch(
+          `/api/students/search?q=${encodeURIComponent(trimmedQuery)}`
+        );
+
+        if (!res.ok) {
+          throw new Error("Search request failed.");
+        }
+
+        const data: SearchStudentResult[] = await res.json();
+
+        if (!cancelled) {
+          setResults(data);
+          setOpen(data.length > 0);
+        }
+      } catch {
+        if (!cancelled) {
+          setResults([]);
+          setOpen(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, [query]);
 
   useEffect(() => {

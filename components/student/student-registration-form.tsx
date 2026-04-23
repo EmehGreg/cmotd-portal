@@ -43,31 +43,36 @@ export function StudentRegistrationForm({ programmes, states }: Props) {
     setBatch(student?.batch ?? "");
   }
 
-  useEffect(() => {
-    const timeout = setTimeout(async () => {
-      if (!programmeId || !batch) {
-        setRegistrationPreview("Auto-generated on registration");
-        return;
-      }
+useEffect(() => {
+  const timeout = setTimeout(async () => {
+    if (selectedStudent?.registrationNumber) {
+      setRegistrationPreview(selectedStudent.registrationNumber);
+      return;
+    }
 
-      try {
-        const res = await fetch(
-          `/api/students/registration-number?programmeId=${encodeURIComponent(
-            programmeId
-          )}&batch=${encodeURIComponent(batch)}&disability=false`
-        );
+    if (!programmeId || !batch) {
+      setRegistrationPreview("Auto-generated on registration");
+      return;
+    }
 
-        const data = await res.json();
-        setRegistrationPreview(
-          data.registrationNumber || "Auto-generated on registration"
-        );
-      } catch {
-        setRegistrationPreview("Auto-generated on registration");
-      }
-    }, 200);
+    try {
+      const res = await fetch(
+        `/api/students/registration-number?programmeId=${encodeURIComponent(
+          programmeId
+        )}&batch=${encodeURIComponent(batch)}&disability=false`
+      );
 
-    return () => clearTimeout(timeout);
-  }, [programmeId, batch]);
+      const data = await res.json();
+      setRegistrationPreview(
+        data.registrationNumber || "Auto-generated on registration"
+      );
+    } catch {
+      setRegistrationPreview("Auto-generated on registration");
+    }
+  }, 200);
+
+  return () => clearTimeout(timeout);
+}, [selectedStudent?.registrationNumber, programmeId, batch]);
 
   return (
     <form action={registerStudent} className="mt-16 space-y-8">
