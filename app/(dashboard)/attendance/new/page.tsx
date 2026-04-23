@@ -9,6 +9,11 @@ type AddAttendancePageProps = {
   }>;
 };
 
+type ProgrammeOption = {
+  id: string;
+  name: string;
+};
+
 const weekOptions = Array.from({ length: 12 }, (_, i) => ({
   value: String(i + 1),
   label: `Week ${i + 1}`,
@@ -21,7 +26,11 @@ export default async function AddAttendancePage({
   const programmeId = params.programme ?? "";
   const week = params.week ?? "";
 
-  const programmes = await prisma.programme.findMany({
+  const programmes: ProgrammeOption[] = await prisma.programme.findMany({
+    select: {
+      id: true,
+      name: true,
+    },
     orderBy: { name: "asc" },
   });
 
@@ -220,5 +229,5 @@ export default async function AddAttendancePage({
 
 async function saveAttendance(formData: FormData) {
   "use server";
-  console.log(formData) //logic goes here. 
+  console.log(formData);
 }

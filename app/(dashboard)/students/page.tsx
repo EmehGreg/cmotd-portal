@@ -7,6 +7,7 @@ type StudentsPageProps = {
   searchParams?: Promise<{
     q?: string;
     programme?: string;
+    state?: string;
   }>;
 };
 
@@ -16,8 +17,9 @@ export default async function StudentsPage({
   const params = (await searchParams) ?? {};
   const q = params.q?.trim() ?? "";
   const programmeId = params.programme ?? "";
+  const stateId = params.state ?? "";
 
-  const [students, programmes, totalCount] = await Promise.all([
+  const [students, programmes, states, totalCount] = await Promise.all([
     prisma.student
       .findMany({
         where: {
@@ -39,6 +41,7 @@ export default async function StudentsPage({
                 }
               : {},
             programmeId ? { programmeId } : {},
+            stateId ? { stateId } : {},
           ],
         },
         include: {
@@ -78,6 +81,9 @@ export default async function StudentsPage({
     prisma.programme.findMany({
       orderBy: { name: "asc" },
     }),
+    prisma.state.findMany({
+      orderBy: { name: "asc" },
+    }),
     prisma.student.count({
       where: {
         batch: "2026",
@@ -98,6 +104,7 @@ export default async function StudentsPage({
               }
             : {},
           programmeId ? { programmeId } : {},
+          stateId ? { stateId } : {},
         ],
       },
     }),
@@ -106,11 +113,12 @@ export default async function StudentsPage({
   return (
     <div className="space-y-6">
       <div className="flex justify-between">
-
         <div className="px-4 pt-2">
           <div className="flex items-center gap-3">
             <Users className="h-9 w-9 text-[#2f2a26]" />
-            <h1 className="text-[32px] font-semibold text-[#2f2a26]">Students</h1>
+            <h1 className="text-[32px] font-semibold text-[#2f2a26]">
+              Students
+            </h1>
           </div>
 
           <div className="mt-3 flex items-center gap-2 pl-[48px] text-[16px]">
@@ -152,11 +160,13 @@ export default async function StudentsPage({
 
       <StudentFilters
         programmes={programmes}
+        states={states}
         initialQ={q}
         initialProgrammeId={programmeId}
+        initialStateId={stateId}
       />
 
-      <div className="overflow-hidden border border-slate-200 bg-white mt-32">
+      <div className="mt-32 overflow-hidden border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-primary text-white">
@@ -167,8 +177,6 @@ export default async function StudentsPage({
                 <th className="px-6 py-3 font-semibold">Phone</th>
                 <th className="px-6 py-3 font-semibold">Email</th>
                 <th className="px-6 py-3 font-semibold">Programme</th>
-                {/* <th className="px-6 py-3 font-semibold">State</th>
-                <th className="px-6 py-3 font-semibold">Batch</th> */}
               </tr>
             </thead>
 
@@ -176,7 +184,7 @@ export default async function StudentsPage({
               {students.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={6}
                     className="px-6 py-8 text-center text-slate-500"
                   >
                     No students found for the 2026 batch.
