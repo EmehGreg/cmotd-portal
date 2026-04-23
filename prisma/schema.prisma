@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+model User {
+  id             String          @id @default(cuid())
+  firstName      String
+  lastName       String
+  email          String          @unique
+  passwordHash   String
+  role           UserRole        @default(ADMIN)
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  programmes     UserProgramme[]
+  weeklyReports  WeeklyReport[]
+  monthlyReports MonthlyReport[]
+
+  @@map("users")
+}
+
+model Programme {
+  id             String          @id @default(cuid())
+  name           String
+  code           String          @unique
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  users          UserProgramme[]
+  students       Student[]
+  weeklyReports  WeeklyReport[]
+  monthlyReports MonthlyReport[]
+
+  @@map("programmes")
+}
+
+model UserProgramme {
+  id          String    @id @default(cuid())
+  userId      String
+  programmeId String
+  assignedAt  DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programme   Programme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, programmeId])
+  @@index([programmeId])
+  @@map("user_programmes")
+}
+
+model State {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+
+  students  Student[]
+
+  @@map("states")
+}
+
+model EducationBackground {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+
+  students  Student[]
+
+  @@map("education_backgrounds")
+}
+
+model Student {
+  id                    String                @id @default(cuid())
+  firstName             String
+  lastName              String
+  email                 String?
+  dateOfBirth           DateTime?
+  gender                Gender?
+  phone                 String?
+  residentialAddress    String?
+  passportPhotoUrl      String?
+  batch                 String?
+  registrationNumber    String?               @unique
+  competencyId          String?
+  educationLevel        String?
+  company               String?
+  remarks               String?
+  disability            Boolean               @default(false)
+  isRegistered          Boolean               @default(false)
+  registeredAt          DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  programmeId           String
+  stateId               String?
+  educationBackgroundId String?
+
+  programme             Programme             @relation(fields: [programmeId], references: [id], onDelete: Restrict)
+  state                 State?                @relation(fields: [stateId], references: [id], onDelete: SetNull)
+  educationBackground   EducationBackground?  @relation(fields: [educationBackgroundId], references: [id], onDelete: SetNull)
+
+  attendances           Attendance[]
+  files                 File[]
+
+  @@index([programmeId])
+  @@index([stateId])
+  @@map("students")
+}
+
+model Attendance {
+  id          String    @id @default(cuid())
+  studentId   String
+  week        Int
+  year        Int
+  attendance  Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, week, year])
+  @@index([week, year])
+  @@map("attendances")
+}
+
+model WeeklyReport {
+  id             String    @id @default(cuid())
+  programmeId    String
+  submittedById  String
+  week           Int
+  year           Int
+  title          String
+  fileUrl        String?
+  submissionDate DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  programme      Programme @relation(fields: [programmeId], references: [id], onDelete: Restrict)
+  submittedBy    User      @relation(fields: [submittedById], references: [id], onDelete: Restrict)
+
+  @@index([programmeId, week, year])
+  @@map("weekly_reports")
+}
+
+model MonthlyReport {
+  id             String    @id @default(cuid())
+  programmeId    String
+  submittedById  String
+  month          Int
+  year           Int
+  title          String
+  fileUrl        String?
+  submissionDate DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  programme      Programme @relation(fields: [programmeId], references: [id], onDelete: Restrict)
+  submittedBy    User      @relation(fields: [submittedById], references: [id], onDelete: Restrict)
+
+  @@index([programmeId, month, year])
+  @@map("monthly_reports")
+}
+
+model File {
+  id            String    @id @default(cuid())
+  studentId     String?
+  originalName  String
+  mimeType      String
+  storageKey    String
+  url           String
+  sizeInBytes   Int
+  category      String
+  createdAt     DateTime  @default(now())
+
+  student       Student?  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@map("files")
+}
