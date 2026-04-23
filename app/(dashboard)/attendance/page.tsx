@@ -9,6 +9,24 @@ type AttendancePageProps = {
   }>;
 };
 
+type ProgrammeOption = {
+  id: string;
+  name: string;
+};
+
+type AttendanceRow = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  batch: string | null;
+  registrationNumber: string | null;
+  programme: {
+    id: string;
+    name: string;
+  };
+};
+
 const weekOptions = Array.from({ length: 12 }, (_, i) => ({
   value: String(i + 1),
   label: `Week ${i + 1}`,
@@ -21,11 +39,15 @@ export default async function AttendancePage({
   const programmeId = params.programme ?? "";
   const week = params.week ?? "1";
 
-  const programmes = await prisma.programme.findMany({
+  const programmes: ProgrammeOption[] = await prisma.programme.findMany({
+    select: {
+      id: true,
+      name: true,
+    },
     orderBy: { name: "asc" },
   });
 
-  const attendanceRows =
+  const attendanceRows: AttendanceRow[] =
     programmeId === ""
       ? []
       : await prisma.student.findMany({
@@ -33,8 +55,19 @@ export default async function AttendancePage({
             batch: "2026",
             programmeId,
           },
-          include: {
-            programme: true,
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            batch: true,
+            registrationNumber: true,
+            programme: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
           orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
           take: 300,
@@ -173,10 +206,7 @@ export default async function AttendancePage({
                     <td className="px-4 py-4">{student.phone ?? "-"}</td>
                     <td className="px-4 py-4">{student.batch ?? "-"}</td>
                     <td className="px-4 py-4">{student.programme.name}</td>
-                    <td className="px-4 py-4">
-                      {/* replace with actual attendance value */}
-                      -
-                    </td>
+                    <td className="px-4 py-4">-</td>
                   </tr>
                 ))
               )}
