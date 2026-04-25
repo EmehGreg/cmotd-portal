@@ -31,30 +31,43 @@ type Props = {
 };
 
 export function PersonSearchSelect({ onSelect }: Props) {
-  const [query, setQuery] = useState("");
+  const [inputValue, setInputValue] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [results, setResults] = useState<SearchStudentResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const activeRequestIdRef = useRef(0);
 
   useEffect(() => {
-    const trimmedQuery = query.trim();
+    const timeout = setTimeout(() => {
+      setDebouncedQuery(inputValue.trim());
+    }, 400);
 
-    if (trimmedQuery.length < 2) {
+    return () => clearTimeout(timeout);
+  }, [inputValue]);
+
+  useEffect(() => {
+    if (debouncedQuery.length < 2) {
       setResults([]);
       setOpen(false);
       setLoading(false);
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
+    const requestId = ++activeRequestIdRef.current;
 
-    const timeout = setTimeout(async () => {
+    async function runSearch() {
       try {
         setLoading(true);
 
         const res = await fetch(
-          `/api/students/search?q=${encodeURIComponent(trimmedQuery)}`
+          `/api/students/search?q=${encodeURIComponent(debouncedQuery)}`,
+          {
+            signal: controller.signal,
+          }
         );
 
         if (!res.ok) {
@@ -63,27 +76,36 @@ export function PersonSearchSelect({ onSelect }: Props) {
 
         const data: SearchStudentResult[] = await res.json();
 
-        if (!cancelled) {
-          setResults(data);
-          setOpen(data.length > 0);
+        if (activeRequestIdRef.current !== requestId) {
+          return;
         }
-      } catch {
-        if (!cancelled) {
-          setResults([]);
-          setOpen(false);
+
+        setResults(data);
+        setOpen(data.length > 0);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
         }
+
+        if (activeRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        setResults([]);
+        setOpen(false);
       } finally {
-        if (!cancelled) {
+        if (activeRequestIdRef.current === requestId) {
           setLoading(false);
         }
       }
-    }, 400);
+    }
+
+    runSearch();
 
     return () => {
-      cancelled = true;
-      clearTimeout(timeout);
+      controller.abort();
     };
-  }, [query]);
+  }, [debouncedQuery]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -103,10 +125,14 @@ export function PersonSearchSelect({ onSelect }: Props) {
     <div ref={wrapperRef} className="relative">
       <Input
         id="student-search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        value={inputValue}
+        onChange={(e) => {
+          setInputValue(e.target.value);
+        }}
         onFocus={() => {
-          if (results.length > 0) setOpen(true);
+          if (results.length > 0) {
+            setOpen(true);
+          }
         }}
         placeholder="Search by name, email, phone, or reg number"
       />
@@ -126,7 +152,8 @@ export function PersonSearchSelect({ onSelect }: Props) {
               className="block w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-slate-50"
               onClick={() => {
                 onSelect(student);
-                setQuery(`${student.firstName} ${student.lastName}`);
+                setInputValue(`${student.firstName} ${student.lastName}`);
+                setResults([]);
                 setOpen(false);
               }}
             >
