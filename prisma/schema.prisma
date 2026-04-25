@@ -156,6 +156,7 @@ model WeeklyReport {
   programme   Programme @relation(fields: [programmeId], references: [id], onDelete: Restrict)
   submittedBy User      @relation(fields: [submittedById], references: [id], onDelete: Restrict)
 
+  @@unique([programmeId, week, year])
   @@index([programmeId, week, year])
   @@index([submittedById])
   @@map("weekly_reports")
