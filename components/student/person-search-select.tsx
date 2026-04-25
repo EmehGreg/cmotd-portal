@@ -43,7 +43,7 @@ export function PersonSearchSelect({ onSelect }: Props) {
   useEffect(() => {
     const timeout = setTimeout(() => {
       setDebouncedQuery(inputValue.trim());
-    }, 400);
+    }, 1000);
 
     return () => clearTimeout(timeout);
   }, [inputValue]);
