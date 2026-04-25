@@ -1,11 +1,16 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 import { ChevronLeft, PencilLine } from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
+import { saveAttendance } from "./save-attendance";
+import { AttendanceFilters } from "@/components/attendance/attendance-filters";
 
 type AddAttendancePageProps = {
   searchParams?: Promise<{
     programme?: string;
     week?: string;
+    year?: string;
   }>;
 };
 
@@ -27,7 +32,7 @@ type AttendanceStudent = {
   };
 };
 
-const weekOptions = Array.from({ length: 12 }, (_, i) => ({
+const weekOptions = Array.from({ length: 16 }, (_, i) => ({
   value: String(i + 1),
   label: `Week ${i + 1}`,
 }));
@@ -35,24 +40,59 @@ const weekOptions = Array.from({ length: 12 }, (_, i) => ({
 export default async function AddAttendancePage({
   searchParams,
 }: AddAttendancePageProps) {
-  const params = (await searchParams) ?? {};
-  const programmeId = params.programme ?? "";
-  const week = params.week ?? "";
+  const session = await auth();
 
-  const programmes: ProgrammeOption[] = await prisma.programme.findMany({
-    select: {
-      id: true,
-      name: true,
-    },
-    orderBy: { name: "asc" },
-  });
+  if (!session?.user?.id || !session.user.role) {
+    redirect("/login");
+  }
+
+  const params = (await searchParams) ?? {};
+  let programmeId = params.programme ?? "";
+  const week = params.week ?? "";
+  const year = params.year ?? String(new Date().getFullYear());
+
+  let programmes: ProgrammeOption[] = [];
+
+  if (session.user.role === "SUPER_ADMIN") {
+    programmes = await prisma.programme.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+  } else if (session.user.role === "ADMIN") {
+    const assigned = await prisma.userProgramme.findMany({
+      where: { userId: session.user.id },
+      select: {
+        programme: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        programme: {
+          name: "asc",
+        },
+      },
+    });
+
+    programmes = assigned.map((item) => item.programme);
+
+    if (!programmeId && programmes.length > 0) {
+      programmeId = programmes[0].id;
+    }
+  }
 
   const students: AttendanceStudent[] =
-    programmeId === ""
+    !programmeId || !week
       ? []
       : await prisma.student.findMany({
           where: {
             programmeId,
+            batch: "2026",
+            registrationNumber: {
+              not: null,
+            },
           },
           select: {
             id: true,
@@ -110,62 +150,17 @@ export default async function AddAttendancePage({
         </div>
       </div>
 
-      <form className="flex flex-wrap items-center gap-4 px-4" method="get">
-        <div className="flex items-center gap-3">
-          <label
-            htmlFor="programme"
-            className="text-[16px] font-medium text-slate-800"
-          >
-            Programme:
-          </label>
-          <select
-            id="programme"
-            name="programme"
-            defaultValue={programmeId}
-            className="h-11 min-w-[240px] border border-slate-300 bg-white px-3 text-[16px] outline-none"
-          >
-            <option value="">Select programme</option>
-            {programmes.map((programme) => (
-              <option key={programme.id} value={programme.id}>
-                {programme.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <label
-            htmlFor="week"
-            className="text-[16px] font-medium text-slate-800"
-          >
-            Week:
-          </label>
-          <select
-            id="week"
-            name="week"
-            defaultValue={week}
-            className="h-11 min-w-[240px] border border-slate-300 bg-white px-3 text-[16px] outline-none"
-          >
-            <option value="">-- Select Week --</option>
-            {weekOptions.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <button
-          type="submit"
-          className="h-11 bg-primary px-5 text-sm font-medium text-white hover:opacity-90"
-        >
-          Load
-        </button>
-      </form>
+      <AttendanceFilters
+        programmes={programmes}
+        initialProgrammeId={programmeId}
+        initialWeek={week}
+        initialYear={year}
+      />
 
       <form action={saveAttendance} className="space-y-4">
         <input type="hidden" name="programmeId" value={programmeId} />
         <input type="hidden" name="week" value={week} />
+        <input type="hidden" name="year" value={year} />
 
         <div className="overflow-hidden border border-primary/40 bg-white">
           <div className="overflow-x-auto">
@@ -182,7 +177,7 @@ export default async function AddAttendancePage({
               </thead>
 
               <tbody>
-                {programmeId === "" || week === "" ? (
+                {!programmeId || !week ? (
                   <tr>
                     <td
                       colSpan={6}
@@ -225,7 +220,11 @@ export default async function AddAttendancePage({
                           type="number"
                           name={`attendance_${student.id}`}
                           min={0}
-                          className="h-11 w-full border border-slate-300 bg-white px-3 outline-none"
+                          max={4}
+                          step={1}
+                          required
+                          className="h-11 w-full border border-slate-300 bg-white px-3 font-semibold outline-none"
+                          inputMode="numeric"
                         />
                       </td>
                     </tr>
@@ -249,9 +248,4 @@ export default async function AddAttendancePage({
       </form>
     </div>
   );
-}
-
-async function saveAttendance(formData: FormData) {
-  "use server";
-  console.log(formData);
 }

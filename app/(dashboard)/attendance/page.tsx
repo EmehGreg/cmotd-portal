@@ -1,11 +1,15 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 import { Eye, ChevronLeft } from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 
 type AttendancePageProps = {
   searchParams?: Promise<{
     programme?: string;
     week?: string;
+    year?: string;
+    success?: string;
   }>;
 };
 
@@ -16,18 +20,20 @@ type ProgrammeOption = {
 
 type AttendanceRow = {
   id: string;
-  firstName: string;
-  lastName: string;
-  phone: string | null;
-  batch: string | null;
-  registrationNumber: string | null;
-  programme: {
-    id: string;
-    name: string;
+  week: number;
+  year: number;
+  attendance: number;
+  student: {
+    firstName: string;
+    lastName: string;
+    phone: string | null;
+    batch: string | null;
+    registrationNumber: string | null;
+    programmeId: string;
   };
 };
 
-const weekOptions = Array.from({ length: 12 }, (_, i) => ({
+const weekOptions = Array.from({ length: 16 }, (_, i) => ({
   value: String(i + 1),
   label: `Week ${i + 1}`,
 }));
@@ -35,43 +41,92 @@ const weekOptions = Array.from({ length: 12 }, (_, i) => ({
 export default async function AttendancePage({
   searchParams,
 }: AttendancePageProps) {
-  const params = (await searchParams) ?? {};
-  const programmeId = params.programme ?? "";
-  const week = params.week ?? "1";
+  const session = await auth();
 
-  const programmes: ProgrammeOption[] = await prisma.programme.findMany({
-    select: {
-      id: true,
-      name: true,
-    },
-    orderBy: { name: "asc" },
-  });
+  if (!session?.user?.id || !session.user.role) {
+    redirect("/login");
+  }
+
+  const params = (await searchParams) ?? {};
+  let programmeId = params.programme ?? "";
+  const week = params.week ?? "1";
+  const year = params.year ?? String(new Date().getFullYear());
+  const success = params.success === "1";
+
+  let programmes: ProgrammeOption[] = [];
+
+  if (session.user.role === "SUPER_ADMIN") {
+    programmes = await prisma.programme.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+  } else if (session.user.role === "ADMIN") {
+    const assigned = await prisma.userProgramme.findMany({
+      where: { userId: session.user.id },
+      select: {
+        programme: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        programme: {
+          name: "asc",
+        },
+      },
+    });
+
+    programmes = assigned.map((item) => item.programme);
+
+    if (!programmeId && programmes.length > 0) {
+      programmeId = programmes[0].id;
+    }
+  }
 
   const attendanceRows: AttendanceRow[] =
-    programmeId === ""
+    !programmeId || !week
       ? []
-      : await prisma.student.findMany({
+      : await prisma.attendance.findMany({
           where: {
-            batch: "2026",
-            programmeId,
+            week: Number(week),
+            year: Number(year),
+            student: {
+              programmeId,
+              batch: "2026",
+            },
           },
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
-            batch: true,
-            registrationNumber: true,
-            programme: {
+            week: true,
+            year: true,
+            attendance: true,
+            student: {
               select: {
-                id: true,
-                name: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                batch: true,
+                registrationNumber: true,
+                programmeId: true,
               },
             },
           },
-          orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+          orderBy: [
+            {
+              student: {
+                registrationNumber: "asc",
+              },
+            },
+          ],
           take: 300,
         });
+
+  const programmeName =
+    programmeId && programmes.length > 0
+      ? programmes.find((p) => p.id === programmeId)?.name ?? "-"
+      : "-";
 
   return (
     <div className="space-y-6 px-4 pt-2">
@@ -108,6 +163,12 @@ export default async function AttendancePage({
           <span>Attendance Record</span>
         </div>
       </div>
+
+      {success ? (
+        <div className="mx-auto w-fit rounded border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+          Attendance saved successfully.
+        </div>
+      ) : null}
 
       <form className="flex flex-wrap items-center gap-4 px-4" method="get">
         <div className="flex items-center gap-3">
@@ -153,6 +214,22 @@ export default async function AttendancePage({
           </select>
         </div>
 
+        <div className="flex items-center gap-3">
+          <label
+            htmlFor="year"
+            className="text-[16px] font-medium text-slate-800"
+          >
+            Year:
+          </label>
+          <input
+            id="year"
+            name="year"
+            type="number"
+            defaultValue={year}
+            className="h-11 w-[140px] border border-slate-300 bg-white px-3 text-[16px] outline-none"
+          />
+        </div>
+
         <button
           type="submit"
           className="h-11 bg-primary px-5 text-sm font-medium text-white hover:opacity-90"
@@ -176,7 +253,7 @@ export default async function AttendancePage({
             </thead>
 
             <tbody>
-              {programmeId === "" ? (
+              {!programmeId ? (
                 <tr>
                   <td
                     colSpan={6}
@@ -195,18 +272,18 @@ export default async function AttendancePage({
                   </td>
                 </tr>
               ) : (
-                attendanceRows.map((student) => (
-                  <tr key={student.id} className="border-t border-primary/30">
+                attendanceRows.map((row) => (
+                  <tr key={row.id} className="border-t border-primary/30">
                     <td className="px-4 py-4">
-                      {student.registrationNumber ?? ""}
+                      {row.student.registrationNumber ?? ""}
                     </td>
                     <td className="px-4 py-4">
-                      {student.firstName} {student.lastName}
+                      {row.student.firstName} {row.student.lastName}
                     </td>
-                    <td className="px-4 py-4">{student.phone ?? "-"}</td>
-                    <td className="px-4 py-4">{student.batch ?? "-"}</td>
-                    <td className="px-4 py-4">{student.programme.name}</td>
-                    <td className="px-4 py-4">-</td>
+                    <td className="px-4 py-4">{row.student.phone ?? "-"}</td>
+                    <td className="px-4 py-4">{row.student.batch ?? "-"}</td>
+                    <td className="px-4 py-4">{programmeName}</td>
+                    <td className="px-4 py-4">{row.attendance}</td>
                   </tr>
                 ))
               )}
