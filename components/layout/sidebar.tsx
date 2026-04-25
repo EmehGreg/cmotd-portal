@@ -87,9 +87,12 @@ const navItems: NavItem[] = [
   },
   {
     name: "Admins Report",
-    href: "/reports/admins",
     icon: FileText,
     roles: ["SUPER_ADMIN"],
+    children: [
+      { name: "Add Report", href: "/reports/admins/new" },
+      { name: "View Report", href: "/reports/admins" },
+    ],
   },
   {
     name: "Manage Admins",
@@ -120,6 +123,7 @@ export default function Sidebar({ user }: SidebarProps) {
     Attendance: true,
     "Weekly Report": false,
     "Monthly Report": false,
+    "Admins Report": false,
   });
 
   const role = user.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "ADMIN";

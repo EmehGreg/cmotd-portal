@@ -30,6 +30,7 @@ model User {
   programmes     UserProgramme[]
   weeklyReports  WeeklyReport[]
   monthlyReports MonthlyReport[]
+  adminReports   AdminReport[]
 
   @@map("users")
 }
@@ -198,4 +199,24 @@ model File {
   @@index([studentId])
   @@index([category])
   @@map("files")
+}
+
+model AdminReport {
+  id             String    @id @default(cuid())
+  submittedById  String
+  title          String
+  fileUrl        String
+  storageKey     String
+  week           Int
+  year           Int
+  submissionDate DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  submittedBy User @relation(fields: [submittedById], references: [id], onDelete: Cascade)
+
+  @@index([submittedById])
+  @@index([week, year])
+  @@index([createdAt])
+  @@map("admin_reports")
 }

@@ -13,13 +13,12 @@ export async function createWeeklyReport(formData: FormData) {
   }
 
   const programmeId = String(formData.get("programmeId") ?? "").trim();
-  const title = String(formData.get("title") ?? "").trim();
   const week = Number(String(formData.get("week") ?? "").trim());
   const year = Number(String(formData.get("year") ?? "").trim());
   const file = formData.get("uploadedPdf");
 
-  if (!programmeId || !title || !week || !year) {
-    throw new Error("Programme, title, week, and year are required.");
+  if (!programmeId || !week || !year) {
+    throw new Error("Programme, week, and year are required.");
   }
 
   if (!(file instanceof File) || file.size === 0) {
@@ -46,19 +45,12 @@ export async function createWeeklyReport(formData: FormData) {
 
   const programme = await prisma.programme.findUnique({
     where: { id: programmeId },
-    select: { code: true },
+    select: { code: true, name: true },
   });
 
   if (!programme) {
     throw new Error("Programme not found.");
   }
-
-  const upload = await uploadWeeklyReportPdf({
-    file,
-    programmeCode: programme.code,
-    week,
-    year,
-  });
 
   const existing = await prisma.weeklyReport.findFirst({
     where: {
@@ -70,28 +62,27 @@ export async function createWeeklyReport(formData: FormData) {
   });
 
   if (existing) {
-    await prisma.weeklyReport.update({
-      where: { id: existing.id },
-      data: {
-        title,
-        fileUrl: upload.publicUrl,
-        submissionDate: new Date(),
-        submittedById: session.user.id,
-      },
-    });
-  } else {
-    await prisma.weeklyReport.create({
-      data: {
-        programmeId,
-        submittedById: session.user.id,
-        week,
-        year,
-        title,
-        fileUrl: upload.publicUrl,
-        submissionDate: new Date(),
-      },
-    });
+    throw new Error("A weekly report already exists for this programme and week.");
   }
+
+  const upload = await uploadWeeklyReportPdf({
+    file,
+    programmeCode: programme.code,
+    week,
+    year,
+  });
+
+  await prisma.weeklyReport.create({
+    data: {
+      programmeId,
+      submittedById: session.user.id,
+      week,
+      year,
+      title: `${programme.name} Weekly Report - Week ${week}`,
+      fileUrl: upload.publicUrl,
+      submissionDate: new Date(),
+    },
+  });
 
   redirect(
     `/reports/weekly?programme=${encodeURIComponent(programmeId)}&week=${encodeURIComponent(

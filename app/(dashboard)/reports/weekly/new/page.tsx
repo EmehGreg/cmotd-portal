@@ -4,44 +4,30 @@ import { ChevronLeft, FilePlus2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { createWeeklyReport } from "./submit-report";
-
-type AddWeeklyReportPageProps = {
-  searchParams?: Promise<{
-    programme?: string;
-    week?: string;
-    year?: string;
-  }>;
-};
+import { WeeklyReportComposer } from "@/components/reports/weekly-report-composer";
 
 type ProgrammeOption = {
   id: string;
   name: string;
+  code: string;
 };
 
-const weekOptions = Array.from({ length: 16 }, (_, i) => ({
-  value: String(i + 1),
-  label: `Week ${i + 1}`,
-}));
-
-export default async function AddWeeklyReportPage({
-  searchParams,
-}: AddWeeklyReportPageProps) {
+export default async function AddWeeklyReportPage() {
   const session = await auth();
 
   if (!session?.user?.id || !session.user.role) {
     redirect("/login");
   }
 
-  const params = (await searchParams) ?? {};
-  let programmeId = params.programme ?? "";
-  const week = params.week ?? "";
-  const year = params.year ?? String(new Date().getFullYear());
-
   let programmes: ProgrammeOption[] = [];
 
   if (session.user.role === "SUPER_ADMIN") {
     programmes = await prisma.programme.findMany({
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+      },
       orderBy: { name: "asc" },
     });
   } else {
@@ -52,6 +38,7 @@ export default async function AddWeeklyReportPage({
           select: {
             id: true,
             name: true,
+            code: true,
           },
         },
       },
@@ -63,10 +50,6 @@ export default async function AddWeeklyReportPage({
     });
 
     programmes = assigned.map((item) => item.programme);
-
-    if (!programmeId && programmes.length > 0) {
-      programmeId = programmes[0].id;
-    }
   }
 
   return (
@@ -84,7 +67,7 @@ export default async function AddWeeklyReportPage({
             Dashboard
           </Link>
           <span className="text-slate-500">/</span>
-          <span className="text-slate-500">Weekly report</span>
+          <span className="text-slate-500">Add Weekly Report</span>
         </div>
 
         <div className="mt-4 pl-[48px]">
@@ -98,98 +81,7 @@ export default async function AddWeeklyReportPage({
         </div>
       </div>
 
-      <form action={createWeeklyReport} className="max-w-3xl space-y-6 bg-white p-6 shadow-sm">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div>
-            <label htmlFor="programmeId" className="mb-2 block text-sm font-medium text-slate-700">
-              Programme
-            </label>
-            <select
-              id="programmeId"
-              name="programmeId"
-              defaultValue={programmeId}
-              required
-              className="h-11 w-full border border-slate-300 bg-white px-3 text-[16px] outline-none"
-            >
-              <option value="">Select programme</option>
-              {programmes.map((programme) => (
-                <option key={programme.id} value={programme.id}>
-                  {programme.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="title" className="mb-2 block text-sm font-medium text-slate-700">
-              Report Title
-            </label>
-            <input
-              id="title"
-              name="title"
-              type="text"
-              required
-              className="h-11 w-full border border-slate-300 bg-white px-3 text-[16px] outline-none"
-              placeholder="Enter weekly report title"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="week" className="mb-2 block text-sm font-medium text-slate-700">
-              Week
-            </label>
-            <select
-              id="week"
-              name="week"
-              defaultValue={week}
-              required
-              className="h-11 w-full border border-slate-300 bg-white px-3 text-[16px] outline-none"
-            >
-              <option value="">-- Select Week --</option>
-              {weekOptions.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="year" className="mb-2 block text-sm font-medium text-slate-700">
-              Year
-            </label>
-            <input
-              id="year"
-              name="year"
-              type="number"
-              defaultValue={year}
-              required
-              className="h-11 w-full border border-slate-300 bg-white px-3 text-[16px] outline-none"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="uploadedPdf" className="mb-2 block text-sm font-medium text-slate-700">
-            Upload Report PDF
-          </label>
-          <input
-            id="uploadedPdf"
-            name="uploadedPdf"
-            type="file"
-            accept="application/pdf"
-            required
-            className="block w-full text-sm text-slate-700"
-          />
-        </div>
-
-        <button
-          type="submit"
-          className="bg-primary px-6 py-2 text-sm font-medium text-white hover:opacity-90"
-        >
-          Submit Report
-        </button>
-      </form>
+      <WeeklyReportComposer programmes={programmes} action={createWeeklyReport} />
     </div>
   );
 }
