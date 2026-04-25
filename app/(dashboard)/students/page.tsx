@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ChevronLeft, Users } from "lucide-react";
 import { StudentFilters } from "@/components/student/student-filters";
+import { auth } from "@/auth";
 
 type StudentsPageProps = {
   searchParams?: Promise<{
@@ -28,13 +30,34 @@ function buildStudentWhereClause({
   q,
   programmeId,
   stateId,
+  allowedProgrammeIds,
+  isSuperAdmin,
 }: {
   q: string;
   programmeId: string;
   stateId: string;
+  allowedProgrammeIds: string[];
+  isSuperAdmin: boolean;
 }) {
+  const restrictedProgrammeFilter = !isSuperAdmin
+    ? {
+        programmeId: {
+          in: allowedProgrammeIds.length > 0 ? allowedProgrammeIds : ["__no_match__"],
+        },
+      }
+    : {};
+
+  const requestedProgrammeFilter = programmeId
+    ? isSuperAdmin
+      ? { programmeId }
+      : allowedProgrammeIds.includes(programmeId)
+        ? { programmeId }
+        : { programmeId: "__no_match__" }
+    : {};
+
   return {
     batch: "2026",
+    ...restrictedProgrammeFilter,
     AND: [
       q
         ? {
@@ -51,7 +74,7 @@ function buildStudentWhereClause({
             ],
           }
         : {},
-      programmeId ? { programmeId } : {},
+      requestedProgrammeFilter,
       stateId ? { stateId } : {},
     ],
   };
@@ -89,12 +112,57 @@ function sortStudents(students: StudentRow[]) {
 export default async function StudentsPage({
   searchParams,
 }: StudentsPageProps) {
+  const session = await auth();
+
+  if (!session?.user?.id || !session.user.role) {
+    redirect("/login");
+  }
+
+  const isSuperAdmin = session.user.role === "SUPER_ADMIN";
+
   const params = (await searchParams) ?? {};
   const q = params.q?.trim() ?? "";
   const programmeId = params.programme ?? "";
   const stateId = params.state ?? "";
 
-  const where = buildStudentWhereClause({ q, programmeId, stateId });
+  const programmes = isSuperAdmin
+    ? await prisma.programme.findMany({
+        select: {
+          id: true,
+          name: true,
+        },
+        orderBy: { name: "asc" },
+      })
+    : (
+        await prisma.userProgramme.findMany({
+          where: {
+            userId: session.user.id,
+          },
+          select: {
+            programme: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: {
+            programme: {
+              name: "asc",
+            },
+          },
+        })
+      ).map((item) => item.programme);
+
+  const allowedProgrammeIds = programmes.map((programme) => programme.id);
+
+  const where = buildStudentWhereClause({
+    q,
+    programmeId,
+    stateId,
+    allowedProgrammeIds,
+    isSuperAdmin,
+  });
 
   const studentsRaw = await prisma.student.findMany({
     where,
@@ -113,14 +181,6 @@ export default async function StudentsPage({
       },
     },
     take: 300,
-  });
-
-  const programmes = await prisma.programme.findMany({
-    select: {
-      id: true,
-      name: true,
-    },
-    orderBy: { name: "asc" },
   });
 
   const states = await prisma.state.findMany({
