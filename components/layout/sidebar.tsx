@@ -141,7 +141,7 @@ export default function Sidebar({ user }: SidebarProps) {
       }`}
     >
       <div
-        className={`flex h-[102px] items-center bg-white transition-all duration-300 ${
+        className={`flex h-[102px] w-auto items-center bg-white transition-all duration-300 ${
           collapsed ? "justify-center px-2" : "justify-center px-4"
         }`}
       >
@@ -151,6 +151,7 @@ export default function Sidebar({ user }: SidebarProps) {
           width={collapsed ? 48 : 190}
           height={collapsed ? 48 : 70}
           className="h-auto object-contain"
+          loading="eager"
         />
       </div>
 

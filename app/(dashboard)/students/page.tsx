@@ -11,6 +11,81 @@ type StudentsPageProps = {
   }>;
 };
 
+type StudentRow = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  gender: string | null;
+  phone: string | null;
+  email: string | null;
+  registrationNumber: string | null;
+  programme: {
+    name: string;
+  };
+};
+
+function buildStudentWhereClause({
+  q,
+  programmeId,
+  stateId,
+}: {
+  q: string;
+  programmeId: string;
+  stateId: string;
+}) {
+  return {
+    batch: "2026",
+    AND: [
+      q
+        ? {
+            OR: [
+              { firstName: { contains: q, mode: "insensitive" as const } },
+              { lastName: { contains: q, mode: "insensitive" as const } },
+              { email: { contains: q, mode: "insensitive" as const } },
+              {
+                registrationNumber: {
+                  contains: q,
+                  mode: "insensitive" as const,
+                },
+              },
+            ],
+          }
+        : {},
+      programmeId ? { programmeId } : {},
+      stateId ? { stateId } : {},
+    ],
+  };
+}
+
+function sortStudents(students: StudentRow[]) {
+  return [...students].sort((a, b) => {
+    const aHasReg = Boolean(a.registrationNumber);
+    const bHasReg = Boolean(b.registrationNumber);
+
+    if (aHasReg && !bHasReg) return -1;
+    if (!aHasReg && bHasReg) return 1;
+
+    if (a.registrationNumber && b.registrationNumber) {
+      return a.registrationNumber.localeCompare(
+        b.registrationNumber,
+        undefined,
+        {
+          numeric: true,
+          sensitivity: "base",
+        }
+      );
+    }
+
+    return `${a.firstName} ${a.lastName}`.localeCompare(
+      `${b.firstName} ${b.lastName}`,
+      undefined,
+      {
+        sensitivity: "base",
+      }
+    );
+  });
+}
+
 export default async function StudentsPage({
   searchParams,
 }: StudentsPageProps) {
@@ -19,96 +94,48 @@ export default async function StudentsPage({
   const programmeId = params.programme ?? "";
   const stateId = params.state ?? "";
 
-  const [students, programmes, states, totalCount] = await Promise.all([
-    prisma.student
-      .findMany({
-        where: {
-          batch: "2026",
-          AND: [
-            q
-              ? {
-                  OR: [
-                    { firstName: { contains: q, mode: "insensitive" } },
-                    { lastName: { contains: q, mode: "insensitive" } },
-                    { email: { contains: q, mode: "insensitive" } },
-                    {
-                      registrationNumber: {
-                        contains: q,
-                        mode: "insensitive",
-                      },
-                    },
-                  ],
-                }
-              : {},
-            programmeId ? { programmeId } : {},
-            stateId ? { stateId } : {},
-          ],
+  const where = buildStudentWhereClause({ q, programmeId, stateId });
+
+  const studentsRaw = await prisma.student.findMany({
+    where,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      gender: true,
+      phone: true,
+      email: true,
+      registrationNumber: true,
+      programme: {
+        select: {
+          name: true,
         },
-        include: {
-          programme: true,
-          state: true,
-        },
-        take: 300,
-      })
-      .then((students) =>
-        students.sort((a, b) => {
-          const aHasReg = Boolean(a.registrationNumber);
-          const bHasReg = Boolean(b.registrationNumber);
-
-          if (aHasReg && !bHasReg) return -1;
-          if (!aHasReg && bHasReg) return 1;
-
-          if (a.registrationNumber && b.registrationNumber) {
-            return a.registrationNumber.localeCompare(
-              b.registrationNumber,
-              undefined,
-              {
-                numeric: true,
-                sensitivity: "base",
-              }
-            );
-          }
-
-          return `${a.firstName} ${a.lastName}`.localeCompare(
-            `${b.firstName} ${b.lastName}`,
-            undefined,
-            {
-              sensitivity: "base",
-            }
-          );
-        })
-      ),
-    prisma.programme.findMany({
-      orderBy: { name: "asc" },
-    }),
-    prisma.state.findMany({
-      orderBy: { name: "asc" },
-    }),
-    prisma.student.count({
-      where: {
-        batch: "2026",
-        AND: [
-          q
-            ? {
-                OR: [
-                  { firstName: { contains: q, mode: "insensitive" } },
-                  { lastName: { contains: q, mode: "insensitive" } },
-                  { email: { contains: q, mode: "insensitive" } },
-                  {
-                    registrationNumber: {
-                      contains: q,
-                      mode: "insensitive",
-                    },
-                  },
-                ],
-              }
-            : {},
-          programmeId ? { programmeId } : {},
-          stateId ? { stateId } : {},
-        ],
       },
-    }),
-  ]);
+    },
+    take: 300,
+  });
+
+  const programmes = await prisma.programme.findMany({
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: { name: "asc" },
+  });
+
+  const states = await prisma.state.findMany({
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: { name: "asc" },
+  });
+
+  const totalCount = await prisma.student.count({
+    where,
+  });
+
+  const students = sortStudents(studentsRaw);
 
   return (
     <div className="space-y-6">

@@ -14,6 +14,7 @@ export default function Topbar({
           alt="CMOTD Logo"
           width={85}
           height={85}
+          loading="eager"
         />
       </div>
 
