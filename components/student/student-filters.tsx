@@ -28,7 +28,8 @@ export function StudentFilters({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const [q, setQ] = useState(initialQ);
+  const [inputValue, setInputValue] = useState(initialQ);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQ);
   const [programmeId, setProgrammeId] = useState(initialProgrammeId);
   const [stateId, setStateId] = useState(initialStateId);
 
@@ -40,7 +41,8 @@ export function StudentFilters({
   );
 
   useEffect(() => {
-    setQ(initialQ);
+    setInputValue(initialQ);
+    setDebouncedQuery(initialQ);
   }, [initialQ]);
 
   useEffect(() => {
@@ -72,7 +74,7 @@ export function StudentFilters({
   }) {
     const params = new URLSearchParams(searchParams.toString());
 
-    const nextQ = next?.q ?? q;
+    const nextQ = next?.q ?? debouncedQuery;
     const nextProgrammeId = next?.programme ?? programmeId;
     const nextStateId = next?.state ?? stateId;
 
@@ -103,15 +105,19 @@ export function StudentFilters({
     }
 
     debounceRef.current = setTimeout(() => {
-      replaceIfChanged(buildParams({ q }));
-    }, 350);
+      setDebouncedQuery(inputValue.trim());
+    }, 1000);
 
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [q, programmeId, stateId, currentQueryString]);
+  }, [inputValue]);
+
+  useEffect(() => {
+    replaceIfChanged(buildParams({ q: debouncedQuery }));
+  }, [debouncedQuery]);
 
   function handleProgrammeChange(value: string) {
     setProgrammeId(value);
@@ -124,7 +130,8 @@ export function StudentFilters({
   }
 
   function handleReset() {
-    setQ("");
+    setInputValue("");
+    setDebouncedQuery("");
     setProgrammeId("");
     setStateId("");
     replaceIfChanged(new URLSearchParams());
@@ -143,8 +150,8 @@ export function StudentFilters({
           <input
             id="q"
             name="q"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
             placeholder="Search by name, email, or reg number"
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
